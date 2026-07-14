@@ -25,9 +25,9 @@ By the end of this lab, participants will be able to:
 ## Lab Environment
 - Platform: local machine, JupyterLab, notebook-driven
 - Required tools: Python 3.10+, a virtual environment, `pip install -e .` from the repo root (installs the `shared` helper package and JupyterLab)
-- Required services: Amazon Bedrock access (Claude) for the live training; `.env` populated per `.env.example` with `PROVIDER` and provider credentials
+- Required services: an LLM provider reachable through the repo's `shared.llm` adapter — currently Amazon Bedrock (Claude) for development/testing, with Azure OpenAI (GPT-4o) as the client's intended target; `.env` populated per `.env.example` with `PROVIDER` and the matching provider credentials. **Which provider is actually live for the training itself still needs to be confirmed with David/the client before the session.**
 - Pre-provisioned resources: none — all insurance submission text used in the lab is synthetic, generated within the notebook's setup section
-- Facilitator setup: confirm Bedrock model access is enabled in the target AWS account/region before the session; do a full run-through of the notebook beforehand
+- Facilitator setup: confirm access/credentials for whichever provider is active for the session (Bedrock model access in the target AWS account/region, or Azure OpenAI deployment access) before the session; do a full run-through of the notebook beforehand
 - Participant setup: clone/pull the repo, run the setup steps in this folder's `setup.md`, confirm their first API call succeeds before the session starts
 
 ## Lab Format Notes
@@ -111,7 +111,7 @@ The notebook is the primary participant artifact for the entire 90 minutes. No p
 
 ## Facilitator Notes
 - Section 8 (Buffer & Wrap-Up, 8 minutes) is unstructured: use it for local troubleshooting, participant questions, comparing different prompt approaches, reviewing key takeaways, and previewing Session 2 (RAG/retrieval) — no notebook cells needed for this part.
-- Confirm Bedrock model access and a successful test call *before* the session — Section 1 depends on this working immediately for every participant.
+- Confirm the active provider's access and a successful test call *before* the session — Section 1 depends on this working immediately for every participant. Confirm with David/the client beforehand which provider (Bedrock or Azure OpenAI) will actually be used for the live session.
 - If running short on time, Section 6 (token cost) can be shortened to a quick discussion rather than a full hands-on exercise; Section 7 (final challenge) should not be cut, since it's the lab's synthesis moment.
 - Common pitfall: participants inventing values for missing fields in Sections 3–5 — use this as a live teaching moment about explicit missing-value handling rather than treating it as a bug.
 - Watch for participants importing SDKs directly instead of using `shared.llm.get_client()` — steer them back early since later sessions depend on this pattern.
