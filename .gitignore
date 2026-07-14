@@ -1,0 +1,14 @@
+.DS_Store
+.envrc
+.env
+
+snapshots/
+toolkit-workspace/
+.venv/
+*.egg-info/
+__pycache__/
+*.pyc
+
+*.log
+*.html
+.toolkit-tutorial*
