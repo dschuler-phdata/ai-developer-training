@@ -24,10 +24,10 @@ class GenerateResult:
 class LLMProvider(Protocol):
     """Provider-agnostic interface every lab notebook should call through.
 
-    Lab content should only ever call `generate()` on whatever provider the
-    factory hands back - it should never import boto3 or the openai SDK
-    directly. That's what keeps the teaching content unchanged when the
-    underlying provider switches from Bedrock to Azure OpenAI.
+    Lab content should only ever call `generate()`/`embed()` on whatever
+    provider the factory hands back - it should never import boto3 or the
+    openai SDK directly. That's what keeps the teaching content unchanged
+    when the underlying provider switches from Bedrock to Azure OpenAI.
     """
 
     def generate(
@@ -45,4 +45,7 @@ class LLMProvider(Protocol):
         system_prompt: str = "",
         max_tokens: int = 1024,
     ) -> BaseModel:
+        ...
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
         ...
