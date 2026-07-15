@@ -24,10 +24,12 @@ Companion to `hol-lab.ipynb`. Use `hol-plan.md` for the full rationale behind ea
 - Talking point: few-shot is a deliberate trade — better consistency, more input tokens. Ask the room whether the token increase seems "worth it" before revealing the actual numbers.
 - What success looks like: participants can point to specific consistency improvements between Section 3 and 4 outputs, and state the input_tokens difference.
 
-## Section 5 — Structured Outputs (15 min)
-- Talking point: this is what makes extraction usable by downstream code — a human can read messy text, but application code needs a schema.
-- Watch for: `json.JSONDecodeError` — some participants' prompts will produce malformed JSON (extra prose before/after, trailing commas). This is expected and is the point of Exercise 5.1.
-- What success looks like: all 5 submissions parse cleanly with all required keys present.
+## Section 5 — Structured Outputs (20 min)
+- Talking point (5.1): native structured-output APIs eliminate manual JSON parsing — the API enforces the schema for you. Define it once (as a Pydantic model) and use it everywhere.
+- What success looks like (5.1): all submissions extract correctly without a single parse error.
+- Talking point (5.2): schema conformance (shape) ≠ semantic correctness (meaning). Validators let you enforce business rules on top of the guaranteed schema.
+- Watch for (5.2): `pydantic.ValidationError` — if locations fail the regex validator, that's the point. Use it to discuss prompt-tuning vs. validator-loosening trade-offs.
+- What success looks like (5.2): participants see at least one validation error and understand the difference between shape validation and semantic validation.
 
 ## Section 6 — Token Cost & Best Practices (12 min)
 - Talking point: bigger ≠ better. The `verbose_system` example is intentionally bad — let participants feel how little the extra verbosity buys.

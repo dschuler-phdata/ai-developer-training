@@ -9,7 +9,7 @@
 | Session Length | 90 minutes, instructor-led |
 | Platform | Local machine (JupyterLab) |
 | Lab Format | notebook |
-| Constraints | Not a Python training — minimize Python boilerplate, emphasize AI/prompt-engineering concepts over syntax. All LLM calls must go through the repo's existing `shared.llm.get_client().generate(user_message, system_prompt, max_tokens) -> GenerateResult(text, usage, model)` helper — no direct `boto3`/`openai`/`anthropic` SDK calls in notebook cells. Attendees run `pip install -e .` from the repo root first, so `import shared` works from inside this session folder. Interactive throughout: attendees write/test/compare/improve prompts themselves, not just run pre-built cells. Session builds toward later sessions (RAG, tools/agents, evals), so extraction output format should stay reusable. |
+| Constraints | Not a Python training — minimize Python boilerplate, emphasize AI/prompt-engineering concepts over syntax. All LLM calls must go through the repo's existing `shared.llm.get_client()` helper — specifically `generate(user_message, system_prompt, max_tokens)` for free text and `generate_structured(user_message, response_model, system_prompt, max_tokens)` for schema-enforced output — no direct `boto3`/`openai`/`anthropic` SDK calls in notebook cells. Attendees run `pip install -e .` from the repo root first, so `import shared` works from inside this session folder. Interactive throughout: attendees write/test/compare/improve prompts themselves, not just run pre-built cells. Session builds toward later sessions (RAG, tools/agents, evals), so extraction output format should stay reusable. |
 
 ## Learning Objectives
 By the end of this lab, participants will be able to:
@@ -18,7 +18,8 @@ By the end of this lab, participants will be able to:
 - Apply prompt-engineering best practices
 - Extract data from unstructured insurance text
 - Compare zero-shot and few-shot prompting
-- Generate and validate structured JSON output
+- Generate structured output using native API features (Pydantic models)
+- Validate extracted data semantically (field validators, business rules)
 - Inspect token usage
 - Reduce unnecessary token usage and cost
 
@@ -78,15 +79,20 @@ The notebook is the primary participant artifact for the entire 90 minutes. No p
 **Takeaway:** Examples materially improve consistency and formatting, but each example adds input tokens — few-shot is a deliberate cost/quality trade-off, not a free upgrade.
 
 ### Section 5 — Structured Outputs
-**Goal:** Generate predictable JSON for downstream application code; handle missing values explicitly; parse and validate the response.
-**Duration:** 15 minutes
+**Goal:** Generate predictable data for downstream application code using native structured-output APIs; handle missing values explicitly; validate extraction semantically.
+**Duration:** 20 minutes (5.1: 10 min, 5.2: 10 min)
 **Format:** notebook
-**Key Activities:**
-- Define a target JSON schema for the extracted fields, with explicit null-handling for missing information
-- Prompt for pure JSON output and parse it with `json.loads`
-- Handle/observe malformed or incomplete JSON output
-**Participant Action:** Convert the extraction output into the defined JSON structure; validate the returned structure with lightweight Python; improve the prompt after observing malformed or incomplete output.
-**Takeaway:** Structured output turns free-text extraction into something application code can reliably consume — but the prompt still has to explicitly define the schema and missing-value behavior; the model won't infer it.
+**Key Activities (5.1 — Schema-Enforced Output):**
+- Define a Pydantic model with the extraction schema (SubmissionExtraction)
+- Call `client.generate_structured(...)` instead of `client.generate(...)` — the API enforces schema conformance
+- Compare manual JSON parsing (Section 4) to API-enforced schema (Section 5)
+**Participant Action (5.1):** Refine the `system_prompt` and field descriptions in the Pydantic model until extraction is accurate for all submissions; no manual parsing code.
+**Key Activities (5.2 — Semantic Validation):**
+- Extend SubmissionExtraction with a `@field_validator` (e.g., locations match "City, ST" format)
+- Re-run extraction with the validator enabled; observe which submissions pass/fail
+- Understand that validators enforce business rules *after* the schema shape is already correct
+**Participant Action (5.2):** Edit the regex or validator rules and re-run; see how adjusting validation strictness surfaces extraction problems or forces prompt refinement.
+**Takeaway:** Native structured-output APIs enforce schema conformance (shape); validators enforce semantic correctness (meaning). Combine clear prompts + Pydantic models + field-level validators to build reliable extraction pipelines.
 
 ### Section 6 — Token Cost & Prompting Best Practices
 **Goal:** Connect prompt quality with token efficiency and cost; understand that longer prompts and more examples are not always better.

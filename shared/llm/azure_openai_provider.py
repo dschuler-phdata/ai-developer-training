@@ -1,6 +1,7 @@
 import os
 
 from openai import APIError, AzureOpenAI
+from pydantic import BaseModel
 
 from shared.llm.base import GenerateResult, Usage
 from shared.utils.env import require_env
@@ -58,3 +59,37 @@ class AzureOpenAIProvider:
             output_tokens=response.usage.completion_tokens,
         )
         return GenerateResult(text=content, usage=usage, model=self.deployment)
+
+    def generate_structured(
+        self,
+        user_message: str,
+        response_model: type[BaseModel],
+        system_prompt: str = "",
+        max_tokens: int = 1024,
+    ) -> BaseModel:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_message})
+
+        try:
+            response = self.client.beta.chat.completions.parse(
+                model=self.deployment,
+                messages=messages,
+                response_format=response_model,
+                max_tokens=max_tokens,
+            )
+        except APIError as e:
+            raise RuntimeError(
+                f"Azure OpenAI request failed ({e.__class__.__name__}): {e}. "
+                f"Check your AZURE_OPENAI_* values in .env and that the "
+                f"'{self.deployment}' deployment exists in your Azure resource."
+            ) from e
+
+        parsed = response.choices[0].message.parsed
+        if parsed is None:
+            raise RuntimeError(
+                "Azure OpenAI failed to parse the response as the requested schema. "
+                "The model may have returned incomplete or invalid structured data."
+            )
+        return parsed
