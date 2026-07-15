@@ -9,7 +9,7 @@
 | Session Length | 90 minutes, instructor-led |
 | Platform | Local machine (JupyterLab) |
 | Lab Format | notebook |
-| Constraints | Concepts over frameworks — no hidden abstractions, every pipeline stage must be visible in notebook code. All LLM text calls go through `shared.llm.get_client().generate(...)`; all embedding calls go through `shared.llm.get_client().embed(...)` — never a raw `boto3`/`openai` SDK call. Vector store is Chroma, used directly (`chromadb.Client()`), not wrapped by LangChain. If LangChain appears at all, it's only for minor glue, never for the chunk/embed/retrieve/augment/generate flow itself. Sample underwriting documents are provided as ready-made data in the notebook (matching Session 1's `SUBMISSIONS` pattern) — no external file loading or dataset download required. Session builds toward Session 3 (tools/agents combined with retrieved context). |
+| Constraints | Concepts over frameworks — no hidden abstractions, every pipeline stage must be visible in notebook code. All LLM text calls go through `shared.llm.get_client().generate(...)`; all embedding calls go through `shared.llm.get_client().embed(...)` — never a raw `boto3`/`openai` SDK call. Vector store is Chroma, used directly (`chromadb.Client()`), not wrapped by LangChain. If LangChain appears at all, it's only for minor glue, never for the chunk/embed/retrieve/augment/generate flow itself. Sample underwriting documents ship as real, formatted PDFs (styled like actual underwriting-manual pages — no real company name/branding, generic "Underwriting Manual — Internal Use Only" header) in this session's `docs/` folder, checked into the repo, and are parsed with `pypdf` in the first notebook cell — synthetic content, no external dataset download or account required. Unlike Session 1's inline `SUBMISSIONS` dict, this is a deliberate first exposure to ingesting real document files, since RAG pipelines normally ingest files (often PDFs) rather than inline strings. Session builds toward Session 3 (tools/agents combined with retrieved context). |
 
 ## Learning Objectives
 By the end of this lab, participants will be able to:
@@ -25,9 +25,9 @@ By the end of this lab, participants will be able to:
 
 ## Lab Environment
 - Same environment as Session 1: local machine, JupyterLab, repo cloned, `.venv` active, `pip install -e .` run from repo root, `.env` populated.
-- New dependency this session: `chromadb` (added to `pyproject.toml` — picked up by the same `pip install -e .` participants already ran for Session 1, no separate install step).
+- New dependencies this session: `chromadb` and `pypdf` (both added to `pyproject.toml` — picked up by the same `pip install -e .` participants already ran for Session 1, no separate install step).
 - New shared capability this session: `shared.llm.get_client().embed(texts: list[str]) -> list[list[float]]`, implemented for both providers (Bedrock: Titan Embed v2; Azure OpenAI: `text-embedding-3-small` via a new `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` env var) — already built and smoke-tested against live Bedrock (2 texts embedded → 1024-dim vectors; Chroma add/query round-trip confirmed correct nearest-neighbor match).
-- No external datasets or accounts required — all underwriting documents are synthetic and defined directly in the notebook, same as Session 1's `SUBMISSIONS`.
+- No external datasets or accounts required — all underwriting documents are synthetic PDFs checked into `session-2-rag-retrieval/docs/`, parsed by the notebook at runtime with `pypdf` (no download step; the files ship with the repo participants already cloned for Session 1).
 - Facilitator: confirm the active `PROVIDER` (bedrock or azure_openai) and, if Azure, that the embedding deployment exists in the target resource before the session.
 
 ## Lab Format Notes
@@ -42,8 +42,8 @@ Notebook-driven, same structure as Session 1: each of the 7 sections below is a 
 **Key Activities:**
 - Recap: LLMs only know what's in their training data + what's in the prompt — RAG closes that gap with retrieval
 - Walk the pipeline diagram: offline (documents → chunk → embed → store) vs. online (query → embed → retrieve → augment → generate)
-- Inspect the provided synthetic underwriting documents (3-5 short docs: general liability guidelines, property risk appetite, cyber coverage exclusions, workers' comp classification rules)
-**Participant Action:** Run the provided cell that prints each document's title and first few lines; skim the full text of at least one.
+- Inspect the provided synthetic underwriting documents (4 short PDFs in `docs/`: general liability guidelines, property risk appetite, cyber coverage exclusions, workers' comp classification rules)
+**Participant Action:** Run the provided cell that parses each PDF from `docs/` with `pypdf` and prints each document's title and first few lines; skim the full text of at least one.
 **Takeaway:** RAG has two distinct pipelines (offline indexing, online query) and today's lab builds both.
 
 ### Section 2 — Chunking documents
