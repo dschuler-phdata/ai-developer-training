@@ -88,4 +88,9 @@ class AzureOpenAIProvider:
                 "Azure OpenAI failed to parse the response as the requested schema. "
                 "The model may have returned incomplete or invalid structured data."
             )
-        return parsed
+        
+        usage = Usage(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
+        return GenerateResult(text=parsed, usage=usage, model=self.deployment)
