@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from pydantic import BaseModel
+
 
 @dataclass
 class Usage:
@@ -34,4 +36,13 @@ class LLMProvider(Protocol):
         system_prompt: str = "",
         max_tokens: int = 1024,
     ) -> GenerateResult:
+        ...
+
+    def generate_structured(
+        self,
+        user_message: str,
+        response_model: type[BaseModel],
+        system_prompt: str = "",
+        max_tokens: int = 1024,
+    ) -> BaseModel:
         ...
