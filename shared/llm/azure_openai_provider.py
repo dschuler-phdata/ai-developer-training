@@ -26,7 +26,6 @@ class AzureOpenAIProvider:
         self,
         user_message: str,
         system_prompt: str = "",
-        max_tokens: int = 1024,
     ) -> GenerateResult:
         messages = []
         if system_prompt:
@@ -37,7 +36,6 @@ class AzureOpenAIProvider:
             response = self.client.chat.completions.create(
                 model=self.deployment,
                 messages=messages,
-                max_tokens=max_tokens,
             )
         except APIError as e:
             raise RuntimeError(
@@ -65,7 +63,6 @@ class AzureOpenAIProvider:
         user_message: str,
         response_model: type[BaseModel],
         system_prompt: str = "",
-        max_tokens: int = 1024,
     ) -> BaseModel:
         messages = []
         if system_prompt:
@@ -77,7 +74,6 @@ class AzureOpenAIProvider:
                 model=self.deployment,
                 messages=messages,
                 response_format=response_model,
-                max_tokens=max_tokens,
             )
         except APIError as e:
             raise RuntimeError(
