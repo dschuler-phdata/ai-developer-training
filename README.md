@@ -17,7 +17,7 @@ later sessions reuse it.
 ## Getting started
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 cp .env.example .env   # fill in the API credentials provided to you
