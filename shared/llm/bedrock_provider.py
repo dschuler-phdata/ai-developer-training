@@ -5,7 +5,7 @@ import boto3
 from botocore.exceptions import ClientError
 from pydantic import BaseModel, ValidationError
 
-from shared.llm.base import GenerateResult, Usage
+from shared.llm.base import GenerateResult, ToolCall, ToolUseResult, Usage
 
 # Newer Claude models on Bedrock require the cross-region inference profile ID
 # (the "us." prefix), not the bare model ID - verified working 2026-07-13.
@@ -15,6 +15,58 @@ DEFAULT_MODEL_ID = os.environ.get(
 DEFAULT_EMBEDDING_MODEL_ID = os.environ.get(
     "BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0"
 )
+
+
+def _to_converse_messages(messages: list[dict]) -> list[dict]:
+    """Translate the shared normalized message list (see `ToolUseResult`)
+    into Converse's message format. Converse has no "tool" role - each
+    `{"role": "tool", ...}` entry becomes a `toolResult` content block on a
+    "user" turn, and consecutive tool messages (one per call from the same
+    agent turn) are merged into a single user turn, since Converse requires
+    strict user/assistant alternation.
+    """
+    converse_messages = []
+    i = 0
+    while i < len(messages):
+        message = messages[i]
+
+        if message["role"] == "tool":
+            tool_results = []
+            while i < len(messages) and messages[i]["role"] == "tool":
+                tool_results.append(
+                    {
+                        "toolResult": {
+                            "toolUseId": messages[i]["tool_call_id"],
+                            "content": [{"text": messages[i]["content"]}],
+                        }
+                    }
+                )
+                i += 1
+            converse_messages.append({"role": "user", "content": tool_results})
+            continue
+
+        if message["role"] == "assistant":
+            content = []
+            if message.get("content"):
+                content.append({"text": message["content"]})
+            for call in message.get("tool_calls") or []:
+                content.append(
+                    {
+                        "toolUse": {
+                            "toolUseId": call.id,
+                            "name": call.name,
+                            "input": call.arguments,
+                        }
+                    }
+                )
+            converse_messages.append({"role": "assistant", "content": content})
+        else:
+            converse_messages.append(
+                {"role": message["role"], "content": [{"text": message["content"]}]}
+            )
+        i += 1
+
+    return converse_messages
 
 
 class BedrockProvider:
@@ -132,6 +184,77 @@ class BedrockProvider:
             raise RuntimeError(
                 f"Bedrock returned tool input that failed schema validation: {e}"
             ) from e
+
+    def generate_with_tools(
+        self,
+        user_message: str,
+        tools: list[dict],
+        system_prompt: str = "",
+        max_tokens: int = 1024,
+        messages: list[dict] | None = None,
+    ) -> ToolUseResult:
+        if messages is None:
+            messages = [{"role": "user", "content": user_message}]
+
+        kwargs = {
+            "modelId": self.model_id,
+            "messages": _to_converse_messages(messages),
+            "inferenceConfig": {"maxTokens": max_tokens},
+            "toolConfig": {
+                "tools": [
+                    {
+                        "toolSpec": {
+                            "name": tool["name"],
+                            "description": tool["description"],
+                            "inputSchema": {"json": tool["input_schema"]},
+                        }
+                    }
+                    for tool in tools
+                ],
+                "toolChoice": {"auto": {}},
+            },
+        }
+        if system_prompt:
+            kwargs["system"] = [{"text": system_prompt}]
+
+        try:
+            response = self.client.converse(**kwargs)
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "Unknown")
+            raise RuntimeError(
+                f"Bedrock request failed ({code}): {e}. Check AWS_REGION, your "
+                f"credentials, and that model access for '{self.model_id}' is "
+                f"enabled in the Bedrock console for this account/region."
+            ) from e
+
+        content_blocks = response["output"]["message"]["content"]
+        text = " ".join(block["text"] for block in content_blocks if "text" in block)
+        tool_calls = [
+            ToolCall(
+                id=block["toolUse"]["toolUseId"],
+                name=block["toolUse"]["name"],
+                arguments=block["toolUse"]["input"],
+            )
+            for block in content_blocks
+            if "toolUse" in block
+        ]
+
+        assistant_message = {
+            "role": "assistant",
+            "content": text or None,
+            "tool_calls": tool_calls,
+        }
+        usage = Usage(
+            input_tokens=response["usage"]["inputTokens"],
+            output_tokens=response["usage"]["outputTokens"],
+        )
+        return ToolUseResult(
+            tool_calls=tool_calls,
+            text=text,
+            messages=messages + [assistant_message],
+            usage=usage,
+            model=self.model_id,
+        )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         # Titan Embed takes one text per invoke_model call - no native batch endpoint.
