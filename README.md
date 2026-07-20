@@ -19,7 +19,7 @@ later sessions reuse it.
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e .
+pip install .
 cp .env.example .env   # fill in the API credentials provided to you
 jupyter lab
 ```
