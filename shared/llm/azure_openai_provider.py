@@ -137,7 +137,6 @@ class AzureOpenAIProvider:
         user_message: str,
         tools: list[dict],
         system_prompt: str = "",
-        max_tokens: int = 1024,
         messages: list[dict] | None = None,
     ) -> ToolUseResult:
         if messages is None:
@@ -165,7 +164,6 @@ class AzureOpenAIProvider:
                 messages=api_messages,
                 tools=api_tools,
                 tool_choice="auto",
-                max_tokens=max_tokens,
             )
         except APIError as e:
             raise RuntimeError(
