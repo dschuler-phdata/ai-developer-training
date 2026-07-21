@@ -80,7 +80,7 @@ class LLMProvider(Protocol):
         user_message: str,
         response_model: type[BaseModel],
         system_prompt: str = "",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
     ) -> BaseModel:
         ...
 
@@ -89,7 +89,6 @@ class LLMProvider(Protocol):
         user_message: str,
         tools: list[dict],
         system_prompt: str = "",
-        max_tokens: int = 1024,
         messages: list[dict] | None = None,
     ) -> ToolUseResult:
         """One turn of a tool-calling conversation.

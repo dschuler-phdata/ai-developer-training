@@ -129,7 +129,7 @@ class BedrockProvider:
         user_message: str,
         response_model: type[BaseModel],
         system_prompt: str = "",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
     ) -> BaseModel:
         schema = response_model.model_json_schema()
         tool_name = response_model.__name__
@@ -190,7 +190,6 @@ class BedrockProvider:
         user_message: str,
         tools: list[dict],
         system_prompt: str = "",
-        max_tokens: int = 1024,
         messages: list[dict] | None = None,
     ) -> ToolUseResult:
         if messages is None:
@@ -199,7 +198,11 @@ class BedrockProvider:
         kwargs = {
             "modelId": self.model_id,
             "messages": _to_converse_messages(messages),
-            "inferenceConfig": {"maxTokens": max_tokens},
+            # Bedrock Converse falls back to a small default when this is omitted -
+            # too small to finish emitting multiple parallel tool calls' JSON, which
+            # truncates mid-argument and corrupts the parsed tool input. Kept generous
+            # and not exposed as a param since callers shouldn't need to think about it.
+            "inferenceConfig": {"maxTokens": 4096},
             "toolConfig": {
                 "tools": [
                     {
