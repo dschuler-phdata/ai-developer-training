@@ -12,6 +12,9 @@ from shared.llm.base import GenerateResult, Usage
 DEFAULT_MODEL_ID = os.environ.get(
     "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-6"
 )
+DEFAULT_EMBEDDING_MODEL_ID = os.environ.get(
+    "BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0"
+)
 
 
 class BedrockProvider:
@@ -20,8 +23,14 @@ class BedrockProvider:
     families if we ever swap Claude for another Bedrock-hosted model.
     """
 
-    def __init__(self, model_id: str = DEFAULT_MODEL_ID, region: str | None = None):
+    def __init__(
+        self,
+        model_id: str = DEFAULT_MODEL_ID,
+        embedding_model_id: str = DEFAULT_EMBEDDING_MODEL_ID,
+        region: str | None = None,
+    ):
         self.model_id = model_id
+        self.embedding_model_id = embedding_model_id
         self.client = boto3.client(
             "bedrock-runtime", region_name=region or os.environ.get("AWS_REGION", "us-east-1")
         )
@@ -123,3 +132,24 @@ class BedrockProvider:
             raise RuntimeError(
                 f"Bedrock returned tool input that failed schema validation: {e}"
             ) from e
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        # Titan Embed takes one text per invoke_model call - no native batch endpoint.
+        vectors = []
+        for text in texts:
+            try:
+                response = self.client.invoke_model(
+                    modelId=self.embedding_model_id,
+                    body=json.dumps({"inputText": text}),
+                )
+            except ClientError as e:
+                code = e.response.get("Error", {}).get("Code", "Unknown")
+                raise RuntimeError(
+                    f"Bedrock embedding request failed ({code}): {e}. Check AWS_REGION, "
+                    f"your credentials, and that model access for "
+                    f"'{self.embedding_model_id}' is enabled in the Bedrock console."
+                ) from e
+
+            body = json.loads(response["body"].read())
+            vectors.append(body["embedding"])
+        return vectors

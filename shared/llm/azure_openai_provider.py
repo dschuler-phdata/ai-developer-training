@@ -7,6 +7,9 @@ from shared.llm.base import GenerateResult, Usage
 from shared.utils.env import require_env
 
 DEFAULT_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+DEFAULT_EMBEDDING_DEPLOYMENT = os.environ.get(
+    "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
+)
 
 
 class AzureOpenAIProvider:
@@ -14,8 +17,13 @@ class AzureOpenAIProvider:
     lab content should be able to swap providers without any code changes.
     """
 
-    def __init__(self, deployment: str = DEFAULT_DEPLOYMENT):
+    def __init__(
+        self,
+        deployment: str = DEFAULT_DEPLOYMENT,
+        embedding_deployment: str = DEFAULT_EMBEDDING_DEPLOYMENT,
+    ):
         self.deployment = deployment
+        self.embedding_deployment = embedding_deployment
         self.client = AzureOpenAI(
             api_key=require_env("AZURE_OPENAI_API_KEY"),
             azure_endpoint=require_env("AZURE_OPENAI_ENDPOINT"),
@@ -88,9 +96,19 @@ class AzureOpenAIProvider:
                 "Azure OpenAI failed to parse the response as the requested schema. "
                 "The model may have returned incomplete or invalid structured data."
             )
-        
-        usage = Usage(
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-        )
-        return GenerateResult(text=parsed, usage=usage, model=self.deployment)
+        return parsed
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        try:
+            response = self.client.embeddings.create(
+                model=self.embedding_deployment, input=texts
+            )
+        except APIError as e:
+            raise RuntimeError(
+                f"Azure OpenAI embedding request failed ({e.__class__.__name__}): {e}. "
+                f"Check your AZURE_OPENAI_* values in .env and that the "
+                f"'{self.embedding_deployment}' embedding deployment exists in your "
+                f"Azure resource."
+            ) from e
+
+        return [item.embedding for item in response.data]
