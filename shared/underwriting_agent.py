@@ -80,6 +80,31 @@ def check_underwriting_rules(
     return {"flags": flags, "within_appetite": len(flags) == 0}
 
 
+def check_underwriting_rules_v2(
+    industry: str,
+    requested_limit: float | None = None,
+    flood_zone: str | None = None,
+    flood_mitigation_on_file: bool = False,
+    roof_age_years: int | None = None,
+    heavy_machinery: bool = False,
+    prior_liability_claims_5yr: int = 0,
+) -> dict:
+    """Same rules as check_underwriting_rules, but normalizes FEMA flood zone subzone
+    codes (e.g. 'VE', 'AE', 'A99') to their base letter before matching, so the flood/
+    limit rule fires correctly regardless of the exact subzone passed in.
+    """
+    normalized_flood_zone = flood_zone[:1].upper() if flood_zone else None
+    return check_underwriting_rules(
+        industry=industry,
+        requested_limit=requested_limit,
+        flood_zone=normalized_flood_zone,
+        flood_mitigation_on_file=flood_mitigation_on_file,
+        roof_age_years=roof_age_years,
+        heavy_machinery=heavy_machinery,
+        prior_liability_claims_5yr=prior_liability_claims_5yr,
+    )
+
+
 class SearchDocumentsInput(BaseModel):
     query: str = Field(description="Natural-language question to search the underwriting guideline manuals for")
     k: int = Field(default=3, description="Number of matching excerpts to return")
