@@ -11,11 +11,8 @@ dependencies = [
     "jupyterlab>=4.2",
     "chromadb>=0.5",
     "pypdf>=4.0",
-<<<<<<< HEAD
     "pandas>=2.0",
     "matplotlib>=3.8",
-=======
->>>>>>> origin/main
 ]
 
 [build-system]
