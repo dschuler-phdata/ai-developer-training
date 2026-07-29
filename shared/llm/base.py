@@ -90,6 +90,7 @@ class LLMProvider(Protocol):
         tools: list[dict],
         system_prompt: str = "",
         messages: list[dict] | None = None,
+        tool_choice: str | dict = "auto",
     ) -> ToolUseResult:
         """One turn of a tool-calling conversation.
 
@@ -102,6 +103,11 @@ class LLMProvider(Protocol):
         executing the requested tools, pass the extended `messages` list
         from the previous `ToolUseResult` back in (see `ToolUseResult` for
         the exact shape) and `user_message` is ignored.
+
+        `tool_choice` defaults to "auto" (the model decides whether/which tool
+        to call). Pass "required" to force *some* tool call, or a bare tool
+        name (e.g. "search_documents") to force that specific one - each
+        provider translates the shorthand into its own wire format.
         """
         ...
 

@@ -224,7 +224,16 @@ def build_underwriting_agent(client, collection) -> UnderwritingAgent:
     }
 
     def run_agent_loop(user_message: str, system_prompt: str, tools: list[dict] = TOOLS, max_iterations: int = 6):
-        response = client.generate_with_tools(user_message, tools, system_prompt=system_prompt)
+        # Force search_documents on the very first turn instead of leaving it to the model's
+        # judgment - a reasoning model has no temperature/seed dial to make that per-run
+        # judgment call land the same way twice, so a prompt asking it to search "when needed"
+        # was calling search_documents inconsistently. tool_choice is an API-enforced
+        # constraint, not a suggestion, so this makes retrieval happen on every run. Every
+        # turn after the first goes back to "auto" so the model stays free to call
+        # check_underwriting_rules or finalize once retrieval has happened.
+        response = client.generate_with_tools(
+            user_message, tools, system_prompt=system_prompt, tool_choice="search_documents"
+        )
         tool_call_log = []
         iterations = 0
 
@@ -238,7 +247,9 @@ def build_underwriting_agent(client, collection) -> UnderwritingAgent:
                 tool_call_log.append({"name": call.name, "arguments": call.arguments, "result": result})
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(result)})
 
-            response = client.generate_with_tools(user_message, tools, system_prompt=system_prompt, messages=messages)
+            response = client.generate_with_tools(
+                user_message, tools, system_prompt=system_prompt, messages=messages, tool_choice="auto"
+            )
             iterations += 1
 
         return response, tool_call_log

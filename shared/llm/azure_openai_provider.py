@@ -13,6 +13,15 @@ DEFAULT_EMBEDDING_DEPLOYMENT = os.environ.get(
 )
 
 
+def _normalize_tool_choice(tool_choice: str | dict) -> str | dict:
+    """Accept "auto"/"required"/"none" as-is, a raw OpenAI tool_choice dict as-is, or a bare
+    tool name (e.g. "search_documents") shorthand for forcing that specific tool.
+    """
+    if isinstance(tool_choice, dict) or tool_choice in ("auto", "required", "none"):
+        return tool_choice
+    return {"type": "function", "function": {"name": tool_choice}}
+
+
 def _to_openai_messages(messages: list[dict]) -> list[dict]:
     """Translate the shared normalized message list (see `ToolUseResult`)
     into the Chat Completions wire format - mainly, re-serializing each
@@ -166,10 +175,11 @@ class AzureOpenAIProvider:
         tool_choice: str | dict = "auto",
     ) -> ToolUseResult:
         """`tool_choice` defaults to "auto" (the model decides whether/which tool to
-        call, same as before). Pass "required" to force *some* tool call, or
-        `{"type": "function", "function": {"name": "..."}}` to force a specific one -
-        useful when a deterministic pre-check already knows a given tool must be
-        called and you don't want to leave that decision to the model's judgment.
+        call, same as before). Pass "required" to force *some* tool call, a bare tool
+        name (e.g. "search_documents") to force that specific one, or a raw
+        `{"type": "function", "function": {"name": "..."}}` dict - useful when a
+        deterministic pre-check already knows a given tool must be called and you
+        don't want to leave that decision to the model's judgment.
         """
         if messages is None:
             messages = []
@@ -194,7 +204,7 @@ class AzureOpenAIProvider:
             "model": self.deployment,
             "messages": api_messages,
             "tools": api_tools,
-            "tool_choice": tool_choice,
+            "tool_choice": _normalize_tool_choice(tool_choice),
         }
         if seed is not None:
             kwargs["seed"] = seed
