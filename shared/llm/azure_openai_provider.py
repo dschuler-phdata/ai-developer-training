@@ -13,6 +13,15 @@ DEFAULT_EMBEDDING_DEPLOYMENT = os.environ.get(
 )
 
 
+def _normalize_tool_choice(tool_choice: str | dict) -> str | dict:
+    """Accept "auto"/"required"/"none" as-is, a raw OpenAI tool_choice dict as-is, or a bare
+    tool name (e.g. "search_documents") shorthand for forcing that specific tool.
+    """
+    if isinstance(tool_choice, dict) or tool_choice in ("auto", "required", "none"):
+        return tool_choice
+    return {"type": "function", "function": {"name": tool_choice}}
+
+
 def _to_openai_messages(messages: list[dict]) -> list[dict]:
     """Translate the shared normalized message list (see `ToolUseResult`)
     into the Chat Completions wire format - mainly, re-serializing each
@@ -49,6 +58,16 @@ def _to_openai_messages(messages: list[dict]) -> list[dict]:
 class AzureOpenAIProvider:
     """GPT-4o via Azure OpenAI Service. Same interface as BedrockProvider -
     lab content should be able to swap providers without any code changes.
+
+    Reasoning models (o-series, gpt-5.x) reject `temperature`/`top_p` entirely -
+    there's no sampling dial to turn down on this provider. The two knobs that
+    remain for pushing behavior toward determinism are `seed` (best-effort only -
+    it can stabilize the final sampled tokens but the internal reasoning tokens
+    still sample, so it narrows variance without eliminating it) and
+    `reasoning_effort` (more deliberation before the model commits to an answer
+    or a tool call, which can reduce "skipped a step" variance at the cost of
+    latency/tokens). Both default to `None`/unset so behavior is unchanged unless
+    a caller opts in.
     """
 
     def __init__(
@@ -68,17 +87,22 @@ class AzureOpenAIProvider:
         self,
         user_message: str,
         system_prompt: str = "",
+        seed: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> GenerateResult:
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_message})
 
+        kwargs = {"model": self.deployment, "messages": messages}
+        if seed is not None:
+            kwargs["seed"] = seed
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.deployment,
-                messages=messages,
-            )
+            response = self.client.chat.completions.create(**kwargs)
         except APIError as e:
             raise RuntimeError(
                 f"Azure OpenAI request failed ({e.__class__.__name__}): {e}. "
@@ -105,18 +129,26 @@ class AzureOpenAIProvider:
         user_message: str,
         response_model: type[BaseModel],
         system_prompt: str = "",
+        seed: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> BaseModel:
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_message})
 
+        kwargs = {
+            "model": self.deployment,
+            "messages": messages,
+            "response_format": response_model,
+        }
+        if seed is not None:
+            kwargs["seed"] = seed
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+
         try:
-            response = self.client.beta.chat.completions.parse(
-                model=self.deployment,
-                messages=messages,
-                response_format=response_model,
-            )
+            response = self.client.beta.chat.completions.parse(**kwargs)
         except APIError as e:
             raise RuntimeError(
                 f"Azure OpenAI request failed ({e.__class__.__name__}): {e}. "
@@ -138,7 +170,17 @@ class AzureOpenAIProvider:
         tools: list[dict],
         system_prompt: str = "",
         messages: list[dict] | None = None,
+        seed: int | None = None,
+        reasoning_effort: str | None = None,
+        tool_choice: str | dict = "auto",
     ) -> ToolUseResult:
+        """`tool_choice` defaults to "auto" (the model decides whether/which tool to
+        call, same as before). Pass "required" to force *some* tool call, a bare tool
+        name (e.g. "search_documents") to force that specific one, or a raw
+        `{"type": "function", "function": {"name": "..."}}` dict - useful when a
+        deterministic pre-check already knows a given tool must be called and you
+        don't want to leave that decision to the model's judgment.
+        """
         if messages is None:
             messages = []
             if system_prompt:
@@ -158,13 +200,19 @@ class AzureOpenAIProvider:
             for tool in tools
         ]
 
+        kwargs = {
+            "model": self.deployment,
+            "messages": api_messages,
+            "tools": api_tools,
+            "tool_choice": _normalize_tool_choice(tool_choice),
+        }
+        if seed is not None:
+            kwargs["seed"] = seed
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.deployment,
-                messages=api_messages,
-                tools=api_tools,
-                tool_choice="auto",
-            )
+            response = self.client.chat.completions.create(**kwargs)
         except APIError as e:
             raise RuntimeError(
                 f"Azure OpenAI request failed ({e.__class__.__name__}): {e}. "

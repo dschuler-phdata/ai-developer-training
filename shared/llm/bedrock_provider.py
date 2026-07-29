@@ -17,6 +17,20 @@ DEFAULT_EMBEDDING_MODEL_ID = os.environ.get(
 )
 
 
+def _normalize_tool_choice(tool_choice: str | dict) -> dict:
+    """Accept a raw Converse toolChoice dict (e.g. {"tool": {"name": "..."}}) as-is,
+    "auto"/"required" as the Converse equivalents, or a bare tool name (e.g.
+    "search_documents") shorthand for forcing that specific tool.
+    """
+    if isinstance(tool_choice, dict):
+        return tool_choice
+    if tool_choice == "auto":
+        return {"auto": {}}
+    if tool_choice == "required":
+        return {"any": {}}
+    return {"tool": {"name": tool_choice}}
+
+
 def _to_converse_messages(messages: list[dict]) -> list[dict]:
     """Translate the shared normalized message list (see `ToolUseResult`)
     into Converse's message format. Converse has no "tool" role - each
@@ -191,7 +205,15 @@ class BedrockProvider:
         tools: list[dict],
         system_prompt: str = "",
         messages: list[dict] | None = None,
+        tool_choice: str | dict = "auto",
     ) -> ToolUseResult:
+        """`tool_choice` defaults to "auto" (the model decides whether/which tool to
+        call, same as before). Pass "required" to force *some* tool call, a bare tool
+        name (e.g. "search_documents") to force that specific one, or a raw Converse
+        toolChoice dict - useful when a deterministic pre-check already knows a given
+        tool must be called and you don't want to leave that decision to the model's
+        judgment.
+        """
         if messages is None:
             messages = [{"role": "user", "content": user_message}]
 
@@ -214,7 +236,7 @@ class BedrockProvider:
                     }
                     for tool in tools
                 ],
-                "toolChoice": {"auto": {}},
+                "toolChoice": _normalize_tool_choice(tool_choice),
             },
         }
         if system_prompt:
